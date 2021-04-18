@@ -12,6 +12,7 @@
 #define btNUM1 0x45
 #define btNUM2 0x46
 #define btNUM3 0x47
+#define THRESHOLD 600
 typedef enum {STOPC, FORWARD, BACKWARD, LEFT, RIGHT} CarState;
 typedef enum {STOPW, CW, CCW} WheelState;
 typedef enum {L, R} Wheel;
@@ -26,7 +27,6 @@ void setup() {
   pinMode(L2, OUTPUT);
   pinMode(R2, OUTPUT);
   controlCar(STOPC);
-  //  irrecv.enableIRIn();
   Serial.begin(9600);
   Serial.print(CW);
   IrReceiver.begin(IRPIN);
@@ -34,7 +34,7 @@ void setup() {
 
 void loop() {
   IRControl();
-  
+  LDRControl();
 }
 
 void controlCar(CarState s) {
@@ -120,4 +120,21 @@ void IRControl() {
     controlCar(STOPC);
     running = false;
   }
+}
+
+void LDRControl() {
+  int up = analogRead(A1);
+  int down = analogRead(A2);
+  int left = analogRead(A3);
+  int right = analogRead(A4);
+  if (up > THRESHOLD)
+    controlCar(FORWARD);
+  else if (down > THRESHOLD)
+    controlCar(BACKWARD);
+  else if (left > THRESHOLD)
+    controlCar(LEFT);
+  else if (right > THRESHOLD)
+    controlCar(RIGHT);
+  else
+    controlCar(STOPC);
 }
