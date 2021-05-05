@@ -1,10 +1,10 @@
 
 #include <IRremote.h>
-#define THRESHOLD 600
 #define L1 9
 #define L2 8
 #define R1 5
 #define R2 4
+#define POWER 2
 #define IRPIN A0
 #define btUP 0x18
 #define btDOWN 0x52
@@ -33,7 +33,9 @@ typedef enum {STOPC, FORWARD, BACKWARD, LEFT, RIGHT} CarState;
 typedef enum {STOPW, CW, CCW} WheelState;
 typedef enum {L, R} Wheel;
 byte speed = 150;
+short threshold = 600;
 unsigned long runtime = 0;
+bool power = false;
 bool running = false;
 byte mode = 1;
 
@@ -47,25 +49,22 @@ void RGBLed(byte color);
 void setup() {
   pinMode(L2, OUTPUT);
   pinMode(R2, OUTPUT);
+  pinMode(POWER, OUTPUT);
   controlCar(STOPC);
   Serial.begin(9600);
   IrReceiver.begin(IRPIN);
   pinMode(BLUEPIN, OUTPUT);
   pinMode(GREENPIN, OUTPUT);
   pinMode(REDPIN, OUTPUT);
-
-  for (int i = 6; i >= 0; i--) {
-    RGBLed(i);
-    delay(250);
-  }
-  RGBLed(PINK);
+  RGBLed(7);
+  digitalWrite(POWER,1);
 }
 
 void loop() {
   IRControl();
-  if (mode == 2)
+  if (mode == 2 && power)
     LDRControl();
-  if (mode == 3)
+  if (mode == 3 && power)
     BluetoothControl();
 }
 
@@ -132,56 +131,84 @@ void IRControl() {
   if (IrReceiver.decode()) {
     Serial.println(IrReceiver.decodedIRData.command, HEX);
     switch (IrReceiver.decodedIRData.command) {
+      case btOK:
+        if (power) {
+          digitalWrite(POWER, 1);
+          power = false;
+          RGBLed(7);
+        }
+        else {
+          digitalWrite(POWER, 0);
+          power = true;
+          for (int i = 6; i >= 0; i--) {
+            RGBLed(i);
+            delay(250);
+           }
+          RGBLed(PINK);
+          mode = 1;
+        }
+        break;
       case btNUM1:
-        if (mode == 1) break;
+        if (mode == 1 || !power) break;
         mode = 1;
         RGBLed(PINK);
         break;
       case btNUM2:
-        if (mode == 2) break;
+        if (mode == 2 || !power) break;
         mode = 2;
         RGBLed(DARKGREEN);
         break;
       case btNUM3:
-        if (mode == 3) break;
+        if (mode == 3 || !power) break;
         mode = 3;
         RGBLed(LIGHTBLUE);
         break;
-        
+
       case btUP:
-        if (mode != 1) break;
+        if (mode != 1 || !power) break;
         controlCar(FORWARD);
         runtime = millis();
         running = true;
         break;
       case btDOWN:
-        if (mode != 1) break;
+        if (mode != 1 || !power) break;
         controlCar(BACKWARD);
         runtime = millis();
         running = true;
         break;
       case btLEFT:
-        if (mode != 1) break;
+        if (mode == 2 && threshold <= 950) {
+          threshold += 50;
+          break;
+        }
+        if (mode != 1 || !power) break;
         controlCar(LEFT);
         runtime = millis();
         running = true;
         break;
       case btRIGHT:
-        if (mode != 1) break;
+        if (mode == 2 && threshold >= 250) {
+          threshold -= 50;
+          break;
+        }
+        if (mode != 1 || !power) break;
         controlCar(RIGHT);
         runtime = millis();
         running = true;
         break;
       case RUNNING:
+        if (!power) break;
         runtime = millis();
         running = true;
         break;
-        
+
       case btSpeedUp:
+        if (!power) break;
         if (speed >= 110)
           speed -= 10;
         break;
       case btSlowDown:
+        if (!power) break;
         if (speed <= 240)
           speed += 10;
     }
@@ -199,13 +226,13 @@ void LDRControl() {
   int left = analogRead(A3);
   int right = analogRead(A4);
   //Serial.println(String(up) + " " + String(down) + " " + String(left) + " " + String(right));
-  if (up > THRESHOLD)
+  if (up > threshold)
     controlCar(FORWARD);
-  else if (down > THRESHOLD)
+  else if (down > threshold)
     controlCar(BACKWARD);
-  else if (left > THRESHOLD)
+  else if (left > threshold)
     controlCar(LEFT);
-  else if (right > THRESHOLD)
+  else if (right > threshold)
     controlCar(RIGHT);
   else
     controlCar(STOPC);
